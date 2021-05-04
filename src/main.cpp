@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <WiFi.h>
+#include <WiFi.h> 
 
 #include "PowerSampler.h"
 int subtract;
@@ -7,6 +7,7 @@ int _numberOfSamples = 200;
 int _voltage = 230; // Assumed Voltage
 int _pin = 32;
 int _pins[8] = {32, 33, 34, 35, 36, 39, -1, -1};
+int _test = 32;
 
 PowerSampler* powerSampler;
 
