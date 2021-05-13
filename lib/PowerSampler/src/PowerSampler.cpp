@@ -4,22 +4,39 @@
 
 static PowerSampler* localPowerSampler;
 
-PowerSampler::PowerSampler(int analogPin, int numberOfSamples, int assumedVoltage) {
+// PowerSampler::PowerSampler(int analogPin, int numberOfSamples, int assumedVoltage) {
+// 	localPowerSampler = this;
+// 	LoadSettings();
+
+// 	_numberOfSamples = numberOfSamples;
+// 	_analogPin = analogPin;
+// 	_radianPerSample = 2.0 * Pi / (float)numberOfSamples;
+// 	_assumedVoltage = assumedVoltage;
+
+// 	_sinus = new float[numberOfSamples];
+// 	//_miniBuffer = new int[_miniBufferSize];
+
+// 	_bufferSamples = new int[8];
+// 	for (int i = 0 ; i < 8 ; i++)
+// 	{
+// 		(&_bufferSamples)[i] = new int[numberOfSamples];
+// 	}
+// }
+
+PowerSampler::PowerSampler(int *analogPins, int numberOfPins, int **bufferSamples, int numberOfSamples, int assumedVoltage) {
 	localPowerSampler = this;
 	LoadSettings();
 
 	_numberOfSamples = numberOfSamples;
-	_analogPin = analogPin;
+	_analogPins = analogPins;
+	_numberOfPins = numberOfPins;
 	_radianPerSample = 2.0 * Pi / (float)numberOfSamples;
 	_assumedVoltage = assumedVoltage;
 
 	_sinus = new float[numberOfSamples];
-	_miniBuffer = new int[_miniBufferSize];
+	_bufferSamples = bufferSamples;
 
-	for (int i = 0 ; i < 8 ; i++)
-	{
-		_bufferSamples[i] = new int[numberOfSamples];
-	}
+	//_miniBuffer = new int[_miniBufferSize];
 }
 
 static void localOnSampleTimer() {
@@ -31,17 +48,25 @@ static void localOnBufferTimer() {
 }
 
 void PowerSampler::onSampleTimer() {
-	long sample = analogRead(_analogPin);
+	long sample = analogRead(_analogPins[_analogPinIndex]);
 
 	if (_activeSampleIndex >= 0 && _activeSampleIndex < _numberOfSamples)
 	{
-		_bufferSamples[_activeBufferId][_activeSampleIndex] = sample;
+		(_bufferSamples)[_activeBufferId][_activeSampleIndex] = sample;
 		_activeSampleIndex++;
 	}
 }
 
 void PowerSampler::onBufferTimer() {
-	_activeBufferId = 1 - _activeBufferId;
+	_lastBufferIndex = _analogPinIndex;
+
+	_analogPinIndex++;
+	if (_analogPinIndex == _numberOfPins){
+		_analogPinIndex = 0;
+	}
+	_analogPin = _analogPins[_analogPinIndex];
+
+	_activeBufferId = _analogPinIndex;
 	_actualSamples = _activeSampleIndex;
 	_bufferChanged = true;
 	_activeSampleIndex = 0;
@@ -69,35 +94,46 @@ void PowerSampler::Start() {
 	timerAlarmEnable(_sampleTimer);
 }
 
-bool PowerSampler::GetActiveBuffer(int* subtract2, float* wattage, int* actualSamples, int* buffer) {
-	float total0 = 0;
-	long totalRaw = 0;
-
+bool PowerSampler::GetActiveBuffer(float* wattage, int* lastBufferIndex, int* currentBufferId) {
 	if (_bufferChanged) {
+		float total = 0;
+		long totalRaw = 0;
+		int howManyZeros = 0;
+
+		// dit moet anders berekend worden
+		// het gemiddelde van alle waardes dus.
+		float _subtractor = 0;
+
 		for (int index = 0; index < _actualSamples; index++)
 		{
-			int value = 0;
-			value = _bufferSamples[_activeBufferId][index];
-			total0 += (float)(abs(value - _sampleSubtraction)) * 1;
+			int value = _bufferSamples[_lastBufferIndex][index];
+			totalRaw += value;
+			// maxValue = max(maxValue, value);
+			// minValue = min(minValue, value);
+		}
+		_subtractor =  (float)(totalRaw) / (float)_numberOfSamples;
+
+		for (int index = 0; index < _actualSamples; index++)
+		{
+			int value = _bufferSamples[_lastBufferIndex][index];
+
+			if (value == 0){
+				howManyZeros++;
+			}
+
+			total += (float)(abs(value - _subtractor)) * 1;
 			totalRaw += value;
 		}
 
-		_sampleSubtraction = totalRaw / _actualSamples;
-
-		*subtract2 = _sampleSubtraction;
-		*wattage = ((total0 / (float)_numberOfSamples) - 1.8) * 5.464480874 ; // *8.870753;
-		*actualSamples = _actualSamples;
-		*buffer = 0;
-
+		//- 1.66164
+		*wattage = ((total / (float)_numberOfSamples) - 1.55733) * 5.464480874 ; // *8.870753;
+		*lastBufferIndex = _lastBufferIndex;
 		_bufferChanged = false;
-		_actualSamples = 0;
-
 		return true;
 	}
 
 	return false;
 }
-
 
 void PowerSampler::LoadSettings(){
 	preferences.begin("my-app", true);

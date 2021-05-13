@@ -13,11 +13,12 @@
 class PowerSampler
 {
   public:
-	  PowerSampler(int analogPin, int numberOfSamples, int assumedVoltage);
+	  //PowerSampler(int analogPin, int numberOfSamples, int assumedVoltage);
+	  PowerSampler(int *analogPins, int numberOfPorts, int **bufferSamples, int numberOfSamples, int assumedVoltage);
 	  void onBufferTimer();
 	  void onSampleTimer();
 	  void Start();
-	  bool GetActiveBuffer(int* subtract2, float* wattage, int* actualSamples, int* buffer);
+	  bool GetActiveBuffer(float* wattage, int* lastBufferIndex, int* currentBufferId);
 
   private:
 	void bufferTimeFlag();
@@ -32,17 +33,19 @@ class PowerSampler
 
 	// Analog
 	int _analogPin = 32;
+	int _analogPinIndex = 0;
 	int _sampleSubtraction = 1860;
 	long _totalSamplingOneCycle = 0;
 	int _actualSamples = 0;
 
+	int _numberOfPins;
 	int _numberOfSamples;
 	float _radianPerSample;
 	int _assumedVoltage;
 	float* _sinus = 0;
 
-	int* _bufferSamples[8];
-	int _analogPorts[8];
+	int **_bufferSamples;
+	int *_analogPins;
 	int _multiplier[8];
 	int _offset[8];
 
@@ -50,6 +53,7 @@ class PowerSampler
 	int* _miniBuffer = 0;
 
 	int _activeBufferId = 0;
+	int _lastBufferIndex = 0;
 	bool _bufferChanged;
 	int _activeSampleIndex = 0;
 	int _previousSample = 0;

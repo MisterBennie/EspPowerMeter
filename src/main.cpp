@@ -3,11 +3,14 @@
 
 #include "PowerSampler.h"
 int subtract;
-int _numberOfSamples = 200;
+int _numberOfSamples = 300;
 int _voltage = 230; // Assumed Voltage
 int _pin = 32;
-int _pins[8] = {32, 33, 34, 35, 36, 39, -1, -1};
-int _test = 32;
+int _numberOfPins; // = sizeof(_pins)/sizeof(_pins[0]);
+int _pins[] = { 32, 33, 34, 35, 36, 25, 26, 27 }; // 39 does not work
+//int _pins[] = { 27, 32 }; // 39 does not work
+int **_bufferSamples;
+float *_wattages;
 
 PowerSampler* powerSampler;
 
@@ -31,14 +34,35 @@ void setup() {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
+  delay(1000);
+
+  _numberOfPins = sizeof(_pins)/sizeof(_pins[0]);
+  Serial.println(sizeof(_pins));
+  Serial.println(sizeof(_pins[0]));
+  Serial.println(_numberOfPins);
+  Serial.println();
+
   //connectToNetwork();
 
-  powerSampler = new PowerSampler(_pin, _numberOfSamples, _voltage);
+  //  powerSampler = new PowerSampler(_pin, _numberOfSamples, _voltage);
+
+  _bufferSamples = new int *[_numberOfPins];
+  for(int i = 0; i <_numberOfPins; i++){
+    _bufferSamples[i] = new int[_numberOfSamples];
+  }
+  _wattages = new float[_numberOfPins];
+
+  powerSampler = new PowerSampler(_pins, _numberOfPins, _bufferSamples, _numberOfSamples, _voltage);
   powerSampler->Start();
 
   // Give everything time to settle
   delay(1000);
 
+    for (int i = 0 ; i < _numberOfPins ; i++){
+      Serial.print("   Pin: ");
+      Serial.print(_pins[i]);
+    }
+    Serial.println();
 }
 
 void waitForInput(){
@@ -47,46 +71,22 @@ void waitForInput(){
 }
 
 void loop() {
-  int actualSamples;
-
-  int buffer;
-  int averagingOverNumberOfPeriods = 50;
-  long totalSubtract = 0;
-
   float wattage;
-  float totalWattage = 0;
+  int previousIndex = 0;
+  int activeIndex = 0;
 
-  int count = 0;
-  int emptyCount = 0;
-  int lastWattage = 0;
-  
-  for (int i = 0 ; i < averagingOverNumberOfPeriods ; i++ ){
-    while (!powerSampler->GetActiveBuffer(&subtract, &wattage, &actualSamples, &buffer)){};
-    if (actualSamples != 0){
-      lastWattage = wattage;
-      totalWattage += wattage;
-      totalSubtract += subtract;
-      count++;
-    }
-    else
-    {
-      emptyCount++;
-    }
+  // iterate over all pins and wait for 500 mSec
+  for (int i = 0 ; i < _numberOfPins ; i++){
+    while (!powerSampler->GetActiveBuffer(&wattage, &previousIndex, &activeIndex)){};
+    _wattages[previousIndex] = wattage;
+    int wattage = abs((int)_wattages[i]);
+    if (wattage < 1000) Serial.print(" ");
+    if (wattage < 100) Serial.print(" ");
+    if (wattage < 10) Serial.print(" ");
+    Serial.print(wattage);
+    Serial.print(" : ");
   }
-
-  if (count != 0){
-    Serial.print(abs(lastWattage),0);
-    Serial.print(" : ");
-    Serial.print(abs(totalWattage/count),0);
-    Serial.print(" :     ");
-    Serial.print(abs(abs(totalWattage/count) - abs(lastWattage)),0);
-    Serial.print("     : ");
-    Serial.print(totalSubtract/count);
-    Serial.print(" : ");
-    Serial.print(count);
-    Serial.print(" : ");
-    Serial.print(actualSamples);
-    Serial.print(" : ");
-    Serial.println(emptyCount);
-  }
+  Serial.print(_numberOfPins);
+  Serial.println("                                                  \r");
+  delay(500);
 }
